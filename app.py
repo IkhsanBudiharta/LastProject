@@ -3,7 +3,7 @@ from functools import wraps
 import hashlib
 import os
 import re
-from flask import Flask, jsonify, redirect, url_for, render_template, request
+from flask import Flask, jsonify, redirect, url_for, render_template, request, make_response
 from pymongo import MongoClient
 import jwt
 from dotenv import load_dotenv
@@ -13,19 +13,18 @@ from babel.dates import format_date, format_datetime, format_time
 import locale
 from uuid import uuid4
 from imagekitio import ImageKit
+
 from werkzeug.utils import secure_filename
 
 
 dotenv_path = join(dirname(__file__), ".env")
 load_dotenv(dotenv_path)
-locale.setlocale(locale.LC_ALL, "id_ID.UTF-8")
 UPLOAD_FOLDER = './static/uploads'
-
 SECRET_KEY = "KEDAIIMAJI"
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 PUBLIC_KEY_TOKEN_IMAGEKIT = os.environ.get("PUBLIC_KEY_TOKEN_IMAGEKIT")
 PRIVATE_KEY_TOKEN_IMAGEKIT =  os.environ.get("PRIVATE_KEY_TOKEN_IMAGEKIT")
@@ -38,6 +37,10 @@ DB_NAME = os.environ.get("DB_NAME")
 
 client = MongoClient(MONGODB_URI)
 db = client[DB_NAME]
+def formatted_currency(amount, currency='IDR', locale='id_ID'):
+    formatted_value = format_currency(amount, currency, locale=locale)
+    formatted_value = formatted_value.replace('Rp', 'Rp ')
+    return formatted_value
 
 app.jinja_env.filters["format_currency"] = format_currency
 
@@ -46,6 +49,7 @@ app.jinja_env.filters["format_currency"] = format_currency
 def home():
     
     token_receive = request.cookies.get("mytoken")
+    menus = list(db.menu.find({}, {"_id": False}))
     if token_receive:
         try:
             payload = jwt.decode(token_receive, SECRET_KEY, algorithms=["HS256"])
@@ -54,13 +58,19 @@ def home():
                 user_info["profile_image"] = 'https://ik.imagekit.io/coffeeshopteam3/profile_placeholdesr.png'
             if not user_info:
                 return redirect(url_for("login"))
+            for i in menus:
+                i["harga"] = formatted_currency(int(i["harga"]))
+            menus = menus[:3]
             return render_template(
-                "index.html", user_info=user_info
+                "index.html", user_info=user_info, menus=menus
             )
 
         except jwt.ExpiredSignatureError:
             return
-    return render_template("index.html")
+    for i in menus:
+        i["harga"] = formatted_currency(int(i["harga"]))
+    menus = menus[:3]
+    return render_template("index.html", menus=menus)
 
 
 @app.route("/about/", methods=["GET", "POST"])
@@ -115,8 +125,8 @@ def menu():
         menus = list(db.menu.find({}, {"_id": False}))
 
     for item in menus:
-        total_ratings = sum([item.get(f"rating_{i}", 0) * i for i in range(1, 6)])
-        total_reviews = sum([item.get(f"rating_{i}", 0) for i in range(1, 6)])
+        total_ratings = sum([item.get("rating_" + str(i), 0) * i for i in range(1, 6)])
+        total_reviews = sum([item.get("rating_" + str(i), 0) for i in range(1, 6)])
         item["average_rating"] = (
             total_ratings / total_reviews if total_reviews > 0 else 0
         )
@@ -149,8 +159,9 @@ def filter_menu():
         menus = list(db.menu.find({}, {"_id": False}))
 
     for item in menus:
-        total_ratings = sum([item.get(f"rating_{i}", 0) * i for i in range(1, 6)])
-        total_reviews = sum([item.get(f"rating_{i}", 0) for i in range(1, 6)])
+        total_ratings = sum([item.get("rating_{}".format(i), 0) * i for i in range(1, 6)])
+        total_reviews = sum([item.get("rating_{}".format(i), 0) for i in range(1, 6)])
+
         item["average_rating"] = (
             total_ratings / total_reviews if total_reviews > 0 else 0
         )
@@ -173,9 +184,7 @@ def cart():
 
         formatted_menu = []
         for item in menu:
-            item["harga"] = locale.format_string(
-                "Rp. %d", int(item["harga"]), grouping=True
-            )
+            item["harga"] = formatted_currency(int(item["harga"]))
             formatted_menu.append(item)
 
         cart_items = user_info.get("cart", [])
@@ -195,12 +204,9 @@ def cart():
 
         formatted_cart_items = []
         for item in cart_items:
-            item["formatted_price"] = locale.format_string(
-                "Rp. %d", item["price"], grouping=True
-            )
-            item["formatted_total"] = locale.format_string(
-                "Rp. %d", item["price"] * item["quantity"], grouping=True
-            )
+            item["formatted_price"] = formatted_currency(item["price"])
+            item["formatted_total"] = formatted_currency(item["price"] * item["quantity"])
+            
             if isinstance(item["option2"], list):
                 item["option2"] = ", ".join(item["option2"])
             formatted_cart_items.append(item)
@@ -210,12 +216,11 @@ def cart():
             menu=formatted_menu,
             user_info=user_info,
             cart_items=formatted_cart_items,
-            total_price=locale.format_string("Rp. %d", total_price, grouping=True),
-            discount=locale.format_string("Rp. %d", discount, grouping=True),
-            tax=locale.format_string("Rp. %d", tax, grouping=True),
-            final_total_price=locale.format_string(
-                "Rp. %d", final_total_price, grouping=True
-            ),
+          
+            total_price=formatted_currency(total_price),
+            discount=formatted_currency(discount),
+            tax=formatted_currency(tax),
+            final_total_price=formatted_currency(final_total_price)
         )
     except jwt.ExpiredSignatureError:
         return redirect(url_for("login", msg="Your token has expired"))
@@ -252,13 +257,13 @@ def update_quantity():
     updated_total = new_quantity * updated_item_price
 
     response_data = {
-        "total_price": f"Rp. {total_price:,}".replace(",", "."),
-        "discount": f"Rp. {discount:,}".replace(",", "."),
-        "tax": f"Rp. {tax:,}".replace(",", "."),
-        "final_total_price": f"Rp. {final_total_price:,}".replace(",", "."),
-        "formatted_total": f"Rp. {updated_total:,}".replace(",", "."),
-        "formatted_price": f"Rp. {updated_item_price:,}".replace(",", "."),
-    }
+      "total_price": "Rp. {:,}".format(total_price).replace(",", "."),
+      "discount": "Rp. {:,}".format(discount).replace(",", "."),
+      "tax": "Rp. {:,}".format(tax).replace(",", "."),
+      "final_total_price": "Rp. {:,}".format(final_total_price).replace(",", "."),
+      "formatted_total": "Rp. {:,}".format(updated_total).replace(",", "."),
+      "formatted_price": "Rp. {:,}".format(updated_item_price).replace(",", "."),
+      }
 
     return jsonify(response_data)
 
@@ -371,7 +376,7 @@ def submit_review():
 
         db.reviews.insert_one(review_doc)
 
-        rating_field = f"rating_{rating}"
+        rating_field = "rating_" + str(rating)
         db.menu.update_one({"menuId": item_id}, {"$inc": {rating_field: 1}})
 
         return redirect(url_for("profile"))
@@ -439,7 +444,7 @@ def confirm_purchase():
 @app.route("/remove_item", methods=["POST"])
 def remove_item():
     token_receive = request.cookies.get("mytoken")
-    item_id = request.form.get("item_id")  # Unique item identifier
+    item_id = request.form.get("item_id") 
     try:
         payload = jwt.decode(token_receive, SECRET_KEY, algorithms=["HS256"])
         user_email = payload["id"]
@@ -448,7 +453,7 @@ def remove_item():
             {"email": user_email},
             {
                 "$pull": {"cart": {"item_id": item_id}}
-            },  # Match the unique item identifier
+            }, 
         )
 
         return jsonify({"success": True, "message": "Item removed successfully"})
@@ -575,7 +580,7 @@ def product(menuId):
 
     menu_item = db.menu.find_one({"menuId": menuId}, {"_id": False})
     
-    price_item = locale.format_string("Rp. %d", int(menu_item["harga"]), grouping=True)
+    menu_item['harga'] = formatted_currency(int(menu_item['harga']))
   
 
     if not menu_item:
@@ -585,14 +590,13 @@ def product(menuId):
         db.menu.find({"kategori": {"$in": menu_item["kategori"]}}, {"_id": False})
     )
     for item in similar_menu:
-        total_ratings = sum([item.get(f"rating_{i}", 0) * i for i in range(1, 6)])
-        total_reviews = sum([item.get(f"rating_{i}", 0) for i in range(1, 6)])
+        total_ratings = sum([item.get("rating_{}".format(i), 0) * i for i in range(1, 6)])
+        total_reviews = sum([item.get("rating_{}".format(i), 0) for i in range(1, 6)])
+
         item["average_rating"] = (
             total_ratings / total_reviews if total_reviews > 0 else 0
         )
-        item["harga"] = locale.format_string(
-            "Rp. %d", int(item["harga"]), grouping=True
-        )
+        item["harga"] = formatted_currency(int(item["harga"]))
 
     reviews = list(db.reviews.find({"item_id": menuId}))
     reviews_total = len(reviews)
@@ -603,11 +607,12 @@ def product(menuId):
         else:
             review["user_name"] = "Unknown User"
 
-    total_reviews = sum(menu_item.get(f"rating_{i}", 0) for i in range(1, 6))
+    total_reviews = sum(menu_item.get("rating_{}".format(i), 0) for i in range(1, 6))
+
     if total_reviews > 0:
         star_percentages = {}
         for i in range(1, 6):
-            rating_key = f"rating_{i}"
+            rating_key = "rating_" + str(i)
             count = menu_item.get(rating_key, 0)
             percentage = (count / total_reviews) * 100
             star_percentages[i] = round(percentage, 2)
@@ -615,7 +620,7 @@ def product(menuId):
         star_percentages = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
 
     if total_reviews > 0:
-        total_rating = sum(i * menu_item.get(f"rating_{i}", 0) for i in range(1, 6))
+        total_rating = sum(i * menu_item.get("rating_{}".format(i), 0) for i in range(1, 6))
         average_rating = total_rating / total_reviews
         average_rating = round(average_rating, 1)
     else:
@@ -627,7 +632,6 @@ def product(menuId):
         user_info=user_info,
         similar_menu=similar_menu,
         menu_item=menu_item,
-        item_price=price_item,
         reviews=reviews,
         star_percentages=star_percentages,
         average_rating=average_rating,
@@ -645,14 +649,13 @@ def update_profile():
         email = request.form.get("email")
         old_password = request.form.get("oldPassword")
         new_password = request.form.get("newPassword")
-        image_url = ""
+        image_url = request.form.get("current_image")
         
         image_file = request.files.get('image_file')
-        print(image_file)
         if image_file:
             filename = secure_filename(image_file.filename)
             filename1 = secure_filename(full_name)
-            finalFilename = f"{filename1}.{filename.split('.')[-1]}"
+            finalFilename = "{}.{}".format(filename1, filename.split('.')[-1])
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             image_file.save(filepath)
             
@@ -667,34 +670,79 @@ def update_profile():
                     file_name=finalFilename,
                 )
                 image_url = response.response_metadata.raw['url']
-                print(image_url)
                 os.remove(filepath)
             except Exception as e:
                 os.remove(filepath)
                 return jsonify({"message": "Error occurred while uploading image. " + str(e)}), 500
-            
         
+        user = db.users.find_one({"email": user_email})
         
-        
-        db.users.update_one(
-            {"email": user_email},
-            {
-                "$set": {
-                    "user_name": full_name,
-                    "email": email,
-                    "profile_image": image_url
+        if old_password and new_password:
+            old_password_hash = hashlib.sha256(old_password.encode("utf-8")).hexdigest()
+            if user and user['password'] == old_password_hash:
+                new_password_hash = hashlib.sha256(new_password.encode("utf-8")).hexdigest()
+                db.users.update_one(
+                    {"email": user_email},
+                    {
+                        "$set": {
+                            "user_name": full_name,
+                            "email": email,
+                            "password": new_password_hash,
+                            "profile_image": image_url
+                        }
+                    }
+                )
+            else:
+                return jsonify({"message": "Old password is incorrect."}), 400
+        else:
+            db.users.update_one(
+                {"email": user_email},
+                {
+                    "$set": {
+                        "user_name": full_name,
+                        "email": email,
+                        "profile_image": image_url
+                    }
                 }
-            },
-        )
+            )
+            db.orders.update_many(
+                {"user_email": user_email},
+                {
+                    "$set": {
+                        "user_email": email
+                    }
+                }
+            )
+            new_payload = {
+            "id": email,
+            "exp": datetime.utcnow() + timedelta(seconds=60 * 60 * 24)
+            }
+            new_token = jwt.encode(new_payload, SECRET_KEY, algorithm="HS256")
+            
+            response = make_response(redirect(url_for("profile")))
+            response.set_cookie("mytoken", new_token)
+            
+            return response
 
         return redirect(url_for("profile"))
 
-    except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError) as e:
+    except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
         return redirect(url_for("login"))
 
 
 @app.route("/register/", methods=["GET", "POST"])
 def register():
+    token_receive = request.cookies.get("mytoken")
+    if token_receive:
+        try:
+            payload = jwt.decode(token_receive, SECRET_KEY, algorithms=["HS256"])
+            user_info = db.users.find_one({"email": payload["id"]})
+            if user_info:
+                return redirect(url_for("home"))
+        except jwt.ExpiredSignatureError:
+            return redirect(url_for("login", msg="Your token has expired"))
+        except jwt.exceptions.DecodeError:
+            return redirect(url_for("login", msg="There was a problem logging you in"))
 
     return render_template("register.html")
 
@@ -715,8 +763,8 @@ def login():
         try:
             payload = jwt.decode(token_receive, SECRET_KEY, algorithms=["HS256"])
             user_info = db.users.find_one({"email": payload["id"]})
-          
-            return render_template("index.html", user_info=user_info)
+            if user_info:
+                return redirect(url_for("home"))
         except jwt.ExpiredSignatureError:
             return redirect(url_for("login", msg="Your token has expired"))
         except jwt.exceptions.DecodeError:
@@ -729,13 +777,19 @@ def sign_up():
     name_receive = request.form["name_give"]
     email_receive = request.form["email_give"]
     password_receive = request.form["password_give"]
+    exist_user = db.users.find_one({"email": email_receive})
+    if exist_user is not None:
+        return jsonify({"result": "fail", "message": "Email already exists"})
+    
    
+  
     password_hash = hashlib.sha256(password_receive.encode("utf-8")).hexdigest()
     doc = {
         "user_name": name_receive,
         "email": email_receive,
         "password": password_hash,
         "role": "USER",
+        "profile_image":"https://ik.imagekit.io/coffeeshopteam3/blank-profile-picture-973460_960_720.png"
     }
     db.users.insert_one(doc)
     return jsonify({"result": "success"})
@@ -779,18 +833,21 @@ def sign_in():
 def generate_menu_id(categories):
     initial_id = "".join([category[0].upper() for category in categories])
 
-    existing_ids = db.menu.find({"menuId": {"$regex": f"^{initial_id}"}})
+    existing_ids = db.menu.find({"menuId": {"$regex": "^" + initial_id}})
+
 
     max_number = 0
     for existing_id in existing_ids:
-        match = re.match(rf"^{initial_id}(\d+)$", existing_id["menuId"])
+        match = re.match(r"^{0}(\d+)$".format(re.escape(initial_id)), existing_id["menuId"])
+
         if match:
             number = int(match.group(1))
             if number > max_number:
                 max_number = number
 
     new_number = max_number + 1
-    new_menu_id = f"{initial_id}{new_number:02d}"
+    new_menu_id = "{}{:02d}".format(initial_id, new_number)
+
 
     return new_menu_id
 
@@ -873,7 +930,7 @@ def admin_user_list():
 def admin_update_menu():
     menus = list(db.menu.find({}, {"_id": False}))
     for menu in menus:
-        menu["harga"] = locale.format_string("%d", int(menu["harga"]), grouping=True)
+        menu["harga"] = formatted_currency(int(menu["harga"]))
     token_receive = request.cookies.get("mytoken")
     if not token_receive:
         return redirect(url_for("login"))
@@ -918,20 +975,43 @@ def admin_add_product():
 @app.route("/api/overview", methods=["GET"])
 @admin_required
 def get_overview():
-    turnover = db.orders.aggregate(
-        [{"$group": {"_id": None, "total": {"$sum": "$total_price"}}}]
-    ).next()["total"]
-    profit = turnover * 0.2 
-    new_customers = db.orders.distinct("user_email")
+    today = datetime.today()
+    start_of_today = datetime(today.year, today.month, today.day)
+    end_of_today = start_of_today + timedelta(days=1)
+    
+    start_of_yesterday = start_of_today - timedelta(days=1)
+    end_of_yesterday = start_of_today
+    
+    total_profit_cursor = db.orders.aggregate([
+        {"$group": {"_id": None, "total": {"$sum": "$total_price"}}}
+    ])
+    
+    total_profit = total_profit_cursor.next()["total"] if total_profit_cursor.alive else 0
+    
+    profit_today_cursor = db.orders.aggregate([
+        {"$match": {"timestamp": {"$gte": start_of_today, "$lt": end_of_today}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_price"}}}
+    ])
+    
+    profit_today = profit_today_cursor.next()["total"] if profit_today_cursor.alive else 0
+    
+    profit_yesterday_cursor = db.orders.aggregate([
+        {"$match": {"timestamp": {"$gte": start_of_yesterday, "$lt": end_of_yesterday}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_price"}}}
+    ])
+    profit_yesterday = profit_yesterday_cursor.next()["total"] if profit_yesterday_cursor.alive else 0
+    
+    profit_change = ((profit_today - profit_yesterday) / profit_yesterday * 100) if profit_yesterday != 0 else 0
+    
+    
     customers = db.users.count_documents({})
     
-
     overview_data = {
-        "turnover": turnover,
-        "profit": profit,
-        "new_customers": customers,
+        "turnover": total_profit,
+        "profit": profit_today,
+        "profit_change": profit_change,
+        "customers": customers,
     }
-
     return jsonify(overview_data)
 
 
@@ -1012,6 +1092,7 @@ def api_users():
                 "email": user["email"],
                 "user_name": user["user_name"],
                 "role": user["role"],
+                "profile_image": user["profile_image"],
             }
         )
     user_order = {"ADMIN": 1, "USER": 2}
@@ -1064,7 +1145,8 @@ def uploads():
     filename1 = secure_filename(image_name)
     
     
-    finalFilename = f"{filename1}.{filename.split(".")[-1]}"
+    finalFilename = "{}.{}".format(filename1, filename.split(".")[-1])
+
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     image_file.save(filepath)
     try:
@@ -1119,7 +1201,8 @@ def edit_product():
     if image_file:
         filename = secure_filename(image_file.filename)
         filename1 = secure_filename(nama)
-        finalFilename = f"{filename1}.{filename.split('.')[-1]}"
+        finalFilename = filename1 + "." + filename.split('.')[-1]
+
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         image_file.save(filepath)
         
@@ -1152,5 +1235,13 @@ def edit_product():
     return redirect(url_for("admin_update_menu"))
 
 
+@app.route('/delete_user', methods=['POST'])
+@admin_required
+def delete_user():
+    email = request.form.get("email")
+    db.users.delete_one({"email": email})
+    return redirect(url_for("admin_user_list"))
+ 
+  
 if __name__ == "__main__":
     app.run("0.0.0.0", port=5000, debug=True)
