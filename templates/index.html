@@ -64,8 +64,8 @@
         <div class="carousel-item">
           <div class="carousel-content">
             <div class="carousel-content">
-              <h1>Slide 2</h1>
-              <p>kata kata 2</p>
+              <h1>Kedai Imaji</h1>
+              <p>WILL HAVE YOUR TASTE</p>
               <button class="btn btn-primary btn-white-black" onclick="gomenu()">ORDER NOW</button>
             </div>
           </div>
@@ -136,54 +136,25 @@
         <p>Discover what everyone's loving right now.</p>
       </div>
       <div class="row justify-content-center">
+        {% for item in menus %}
         <div class="col-md-4">
           <div class="product-item position-relative">
             <div class="image-holder">
-              <img
-                src="https://ik.imagekit.io/rn4jfgmjp/WhatsApp%20Image%202024-06-04%20at%202.15.05%20PM.jpeg?updatedAt=1717486489173"
-                alt="product-item" class="product-image">
+              <a href="/product/{{item.menuId}}"  class="text-center">
+                <img src="{{ item.image }}" alt="product-item" class="product-image">
+              </a>
+
               <div class="cart-button">
-                <a href="#" class="btn btn-medium btn-light">MENU DETAILS</a>
+                <a href="/product/{{item.menuId}}" class="btn btn-medium btn-light">MENU DETAILS</a>
               </div>
             </div>
             <div class="product-detail text-center">
-              <h3 class="product-title"><a href="#">Product Title 1</a></h3>
-              <span class="item-price">$10.00</span>
+              <h3 class="product-title"><a href="/product/{{item.menuId}}">{{item.nama}}</a></h3>
+              <span class="item-price">{{item.harga}}</span>
             </div>
           </div>
         </div>
-        <div class="col-md-4">
-          <div class="product-item position-relative">
-            <div class="image-holder">
-              <img
-                src="https://ik.imagekit.io/rn4jfgmjp/WhatsApp%20Image%202024-06-04%20at%202.15.05%20PM.jpeg?updatedAt=1717486489173"
-                alt="product-item" class="product-image">
-              <div class="cart-button">
-                <a href="#" class="btn btn-medium btn-light">MENU DETAILS</a>
-              </div>
-            </div>
-            <div class="product-detail text-center">
-              <h3 class="product-title"><a href="#">Product Title 2</a></h3>
-              <span class="item-price ">$10.00</span>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="product-item position-relative">
-            <div class="image-holder">
-              <img
-                src="https://ik.imagekit.io/rn4jfgmjp/WhatsApp%20Image%202024-06-04%20at%202.15.05%20PM.jpeg?updatedAt=1717486489173"
-                alt="product-item" class="product-image">
-              <div class="cart-button">
-                <a href="#" class="btn btn-medium btn-light">MENU DETAILS</a>
-              </div>
-            </div>
-            <div class="product-detail text-center">
-              <h3 class="product-title"><a href="#">Product Title 3</a></h3>
-              <span class="item-price">$10.00</span>
-            </div>
-          </div>
-        </div>
+        {% endfor %}
       </div>
       <div class="btn-center">
         <a href="/menu" class="btn btn-mediums btn-black">SEE ALL MENU</a>
