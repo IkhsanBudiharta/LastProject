@@ -27,7 +27,7 @@
 
 <body>
     <section class="section login-section">
-        <div class="container login-container">
+        <div class="container login-container justify-content-center align-items-center align-content-center" style="width: 100%;">
             <div class="row g-0">
                 <div class="col login-left-side">
                     <h1 class="text-center">Sign In</h1>
@@ -152,7 +152,13 @@
                                 Cookies.set("mytoken", response["token"], { path: "/" });
                                 window.location.replace("/");
                             } else {
-                                alert(response["msg"]);
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Login Failed',
+                                    text: response["msg"],
+                                    showConfirmButton: false,
+                                    timer: 1500
+                                })
                             }
                         },
                     });
