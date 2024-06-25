@@ -41,7 +41,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.5/dist/js.cookie.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
+    <script src="../static/script.js"></script>
     <style>
         body {
             display: flex;
@@ -271,10 +271,12 @@
                 paginatedItems.forEach(item => {
                     tableBody.append(`
                     <tr data-email="${item.email}">
-                        <td><img src="../static/img/profile_placeholder.png" class="profile-icon rounded-circle mr-4" alt="Profile Image" style="width: 40px; height: 40px;"><span class="profile-text">${item.user_name}</span></td>
+                        <td><img src="${item.profile_image}" class="profile-icon rounded-circle mr-4" alt="Profile Image" style="width: 40px; height: 40px;"><span class="profile-text">${item.user_name}</span></td>
                         <td>${item.email}</td>
                         <td>${item.role}</td>
-                        <td><a href="#" class="edit-icon-user-list"><i class="fas fa-edit"></i></a></td>
+                        <td><a href="#" class="edit-icon-user-list"><i class="fas fa-edit"></i></a>
+                            <button class="delete-icon-user-list btn btn-danger btn-sm"><i class="fas fa-trash-alt"></i></button>
+                        </td>
                     </tr>
                     `);
                 });
@@ -340,9 +342,39 @@
                 console.log(currentEmail);
 
             });
+            $(document).on('click', '.delete-icon-user-list', function (event) {
+                event.preventDefault();
+                currentEmail = $(this).closest('tr').data('email');
+                console.log(currentEmail);
+                Swal.fire({
+                    title: 'Are you sure?',
+                    text: "You won't be able to revert this!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Yes, delete it!'
+                }) .then((result) => {
+                    if (result.isConfirmed) {
+                        $.ajax({
+                            url: '/delete_user',
+                            type: 'POST',
+                            data: { email: currentEmail },
+                            success: function (response) {
+                                console.log(response);
+                                location.reload();
+                            },
+                            error: function (error) {
+                                console.log(error);
+                            }
+                        });
+                    }
+                })
+            })
+            
 
             $('.close-btn-user-list').on('click', function () {
-                $('#overlay-userrlist').css('display', 'none');
+                $('#overlay-user-list').css('display', 'none');
             });
 
             $('#saveBtn').on('click', function () {
