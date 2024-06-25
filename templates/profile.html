@@ -88,14 +88,14 @@
       <div class="row">
         <div class="col-md-4 col-12 text-center">
           <div class="profile-img">
-            <img src="{{user_info.profile_image}}" alt="Profile Image" class="img-fluid rounded-circle"
+            <img src="{{user_info.profile_image}}" height="150" width="150" alt="Profile Image" class="rounded-circle"
               style="max-width: 150px; max-height: 150px;">
           </div>
           <h2 class="mt-3">{{ user_info.user_name }}</h2>
           <p>{{ user_info.email }}</p>
           {% if user_info.role == 'ADMIN' %}
           <p style="color: red;">ADMIN</p>
-          <a class="btn btn-secondary rounded-0 button-profile" href="{{ url_for('admin_dashboard') }}">ADMIN PAGE</a>
+          <a class="btn btn-secondary rounded-0" href="{{ url_for('admin_dashboard') }}">ADMIN PAGE</a>
           {% endif %}
           <button class="btn btn-secondary border-radius-none button-profile">
             <i class="fa-solid fa-pen-to-square"></i> Edit profile
@@ -193,10 +193,10 @@
         <div class="row">
           <div class="col-md-8 mx-auto">
             <div class="bg-light p-4 rounded">
-              <div class="row">
-                <div class="col-md-4 position-relative profile-picture-edit">
-                  <!-- Logo kamera -->
-                  <form action="{{ url_for('update_profile') }}" method="POST" enctype="multipart/form-data">
+              <form action="{{ url_for('update_profile') }}" method="POST" enctype="multipart/form-data">
+                <div class="row">
+                  <div class="col-md-4 position-relative profile-picture-edit">
+                    <!-- Logo kamera -->
                     <div class="position-absolute bottom-50 start-50 translate-middle-x mb-3 little-camera-picture">
                       <input id="upload" type="file" class="form-control" accept=".png,.jpg,.jpeg" name="image_file"
                         style="opacity: 0; position: absolute;" placeholder="Enter the Image" />
@@ -205,40 +205,40 @@
                     <!-- Gambar pengguna -->
                     <div class="d-flex align-items-center justify-content-center mb-3 mt-3">
                       <div>
-                        <img src="../static/img/profile_placeholder.png" id="previewImage" alt="User"
-                          class="rounded-circle" style="width: 150px; height: 150px;">
+                        <img src="{{user_info.profile_image}}" id="previewImage" alt="User" class="rounded-circle"
+                          style="width: 150px; height: 150px;">
                       </div>
                     </div>
+                  </div>
+                  <div class="col-md-8">
+                    <input type="hidden" name="current_image" id="current_image" value="{{user_info.profile_image}}">
+                    <div class="mb-3">
+                      <label for="fullName" class="form-label">Full Name</label>
+                      <input type="text" class="form-control" id="fullName" placeholder="{{user_info.user_name}}"
+                        value="{{user_info.user_name}}" name="fullName">
+                    </div>
+                    <div class="mb-3">
+                      <label for="email" class="form-label">Email</label>
+                      <input type="email" class="form-control" name="email" id="email" placeholder="{{user_info.email}}"
+                        value="{{user_info.email}}">
+                    </div>
+                    <div class="mb-3">
+                      <label for="oldPassword" class="form-label">Old Password</label>
+                      <input type="password" class="form-control" name="oldPassword" id="oldPassword"
+                        placeholder="Your Old Password">
+                    </div>
+                    <div class="mb-3">
+                      <label for="newPassword" class="form-label">New Password</label>
+                      <input type="password" class="form-control" name="newPassword" id="newPassword"
+                        placeholder="Your New Password">
+                    </div>
+                    <div class="d-flex justify-content-end button-edit-profile">
+                      <button type="button" class="btn button-edit-profile-cancel me-2">Cancel</button>
+                      <button type="submit" class="btn btn-secondary button-profile">Save Profile</button>
+                    </div>
+                  </div>
                 </div>
-                <div class="col-md-8">
-
-                  <div class="mb-3">
-                    <label for="fullName" class="form-label">Full Name</label>
-                    <input type="text" class="form-control" id="fullName" placeholder="{{user_info.user_name}}"
-                      value="{{user_info.user_name}}" name="fullName">
-                  </div>
-                  <div class="mb-3">
-                    <label for="email" class="form-label">Email</label>
-                    <input type="email" class="form-control" name="email" id="email" placeholder="{{user_info.email}}"
-                      value="{{user_info.email}}">
-                  </div>
-                  <div class="mb-3">
-                    <label for="oldPassword" class="form-label">Old Password</label>
-                    <input type="password" class="form-control" name="oldPassword" id="oldPassword"
-                      placeholder="Your Old Password">
-                  </div>
-                  <div class="mb-3">
-                    <label for="newPassword" class="form-label">New Password</label>
-                    <input type="password" class="form-control" name="newPassword" id="newPassword"
-                      placeholder="Your New Password">
-                  </div>
-                  <div class="d-flex justify-content-end button-edit-profile">
-                    <button type="button" class="btn button-edit-profile-cancel me-2">Cancel</button>
-                    <button type="submit" class="btn btn-secondary button-profile">Save Profile</button>
-                  </div>
-                  </form>
-                </div>
-              </div>
+              </form>
             </div>
           </div>
         </div>
@@ -262,6 +262,8 @@
       $('.button-profile').click(function () {
         $('#overlay-form').fadeIn();
         $('#edit-profile-form').fadeIn();
+        $('.oldPassword').val('');
+        $('.newPassword').val('');
       });
 
       $('.button-edit-profile-cancel').click(function () {
